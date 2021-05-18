@@ -19,7 +19,7 @@ import docker_patch
 def patcher_func(container):
     print(f'patch container "{container}"')
 
-    container.exec_run('/bin/sh -c "echo \"hi from patch function!\" >> patched.txt"')
+    container.exec_run('/bin/sh -c \'echo "hi from module 1" >> patched.txt\'')
 ```
 
 You can register multiple patchers, and then use it in one of these options:

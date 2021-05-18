@@ -8,7 +8,7 @@ from docker.models.containers import Container
 registered_patchers: typing.List[typing.Callable] = []
 
 
-__version__ = '0.1'
+__version__ = '0.1.1'
 
 
 def default_on_error(e: Exception):
