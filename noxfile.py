@@ -5,7 +5,7 @@ import nox
 def test(session):
     session.install('flake8', 'tox')
     session.run('flake8', '--show-source', '--statistics', 'docker_patch')
-    session.run('tox')
+    session.run('tox', '-s')
 
 
 @nox.session(name='build')
