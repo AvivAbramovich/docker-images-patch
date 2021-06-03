@@ -8,11 +8,16 @@ from docker.models.containers import Container
 registered_patchers: typing.List[typing.Callable] = []
 
 
-__version__ = '0.1.1'
+__version__ = '0.1.2'
 
 
-def default_on_error(e: Exception):
-    raise e
+def default_on_error(error: Exception):
+    raise error
+
+
+def _get(d: dict, key: str, default):
+    res = d.get(key, default)
+    return default if res is None else res
 
 
 def register_patcher(
@@ -39,44 +44,44 @@ def patch_image(
         on_patcher_error = default_on_error
 
     orig_config = client.api.inspect_image(image.id)['Config']
-    orig_entrypoint = orig_config['Entrypoint']
-    if not orig_entrypoint:
-        orig_entrypoint = ''
 
     # create a container
-    logger.info(f'Creating container for "{image}"')
-    c: Container = client.containers.run(
+    logger.info('Creating container for "%s"', image)
+    container: Container = client.containers.run(
         image, detach=True, entrypoint='/bin/sh',
         remove=True, tty=True, network_mode='host'
     )
-    logger.info(f'Container: "{c.name}" (id: {c.id})')
+    logger.info('Container: "%s" (id: "%s")', container.name, container.id)
 
     try:
         for patch_func in registered_patchers:
             try:
-                logger.info(f'calling patcher func "{patch_func.__name__}"')
-                patch_func(c)
-            except Exception as e:
-                on_patcher_error(e)
+                logger.info('calling patcher func "%s"', patch_func.__name__)
+                patch_func(container)
+            except Exception as error:
+                on_patcher_error(error)
 
         # commit
         logger.info('Commit container')
-        result_image = c.commit(conf={'Entrypoint': orig_entrypoint})
+        result_image = container.commit(conf={
+            'Entrypoint': _get(orig_config, 'Entrypoint', []),
+            'Cmd': _get(orig_config, 'Cmd', [])
+        })
 
-        logger.info(f'New image id: {result_image.id}')
+        logger.info('New image id: "%s"', result_image.id)
 
         # re-tag
-        logger.info(f'tag new image with {len(image.tags)} tags')
+        logger.info('tag new image with %d tags', len(image.tags))
         for tag in image.tags:
-            logger.info(f'-tag "{tag}"')
+            logger.info('-tag "%s"', tag)
             result_image.tag(tag)
 
         # fetch image again with tags
         return client.images.get(result_image.id)
     finally:
         # fetch the updated container object
-        c = client.containers.get(c.id)
-        if c.status == 'running':
+        container = client.containers.get(container.id)
+        if container.status == 'running':
             # stop container (should be removed)
-            logger.info(f'Stopping container "{c.name}"')
-            c.stop()
+            logger.info('Stopping container "%s"', container.name)
+            container.stop()
